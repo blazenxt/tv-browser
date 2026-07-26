@@ -22,6 +22,10 @@ bookmarks and history.
 | **TV-native UI** | Leanback launcher entry with banner, overscan-safe dark UI, big focus outlines. |
 | **Web text fields** | Clicking a text box opens an on-TV dialog (with voice + Done/Enter) — no fighting the WebView for keyboard focus. |
 | **Desktop mode** | Optional desktop user-agent for sites that serve cramped mobile layouts. |
+| **Ad & popup blocker** | Built-in blocklist kills known ad/tracker networks; silent pop-ups are cancelled, gestured ones open in the same tab. Toggle in Settings. |
+| **Downloads** | Files offered by sites download to the TV's public **Downloads** folder, with a progress dialog. |
+| **Text size** | Normal / Large / Extra-large website text scaling. |
+| **Custom new-tab page** | New tabs open the built-in start page or any URL you choose. |
 
 ## 🎮 Remote control
 
@@ -92,6 +96,15 @@ android/                        Leanback manifest, banner, icons
   and `lib/providers/settings_provider.dart`.
 * **Cursor look/speed** — `lib/widgets/cursor_overlay.dart` and
   `CursorSpeed` in settings provider.
+
+## 🧾 Changelog
+
+**1.1.0** — Ad & popup blocker (with toggle), downloads to the public
+Downloads folder via MediaStore, text-size setting, customizable new-tab
+page, popup navigation goes to the current tab instead of being lost.
+
+**1.0.0** — First release: cursor + jump navigation, tabs, bookmarks,
+history, voice search, settings, TV launcher banner.
 
 ## ⚠️ Known limitations
 

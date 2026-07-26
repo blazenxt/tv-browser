@@ -27,7 +27,11 @@ class TvBrowserApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SettingsProvider(prefs)),
         ChangeNotifierProvider(create: (_) => BookmarksProvider(prefs)),
         ChangeNotifierProvider(create: (_) => HistoryProvider(prefs)),
-        ChangeNotifierProvider(create: (_) => TabsProvider()),
+        ChangeNotifierProxyProvider<SettingsProvider, TabsProvider>(
+          create: (_) => TabsProvider(),
+          update: (_, settings, tabs) =>
+              tabs!..newTabUrlResolver = () => settings.newTabUrl,
+        ),
       ],
       child: MaterialApp(
         title: 'TV Browser',

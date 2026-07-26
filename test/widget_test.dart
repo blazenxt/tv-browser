@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tv_browser/providers/settings_provider.dart';
+import 'package:tv_browser/services/adblock.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +33,31 @@ void main() {
     test('returns null for empty input', () async {
       final s = await makeSettings();
       expect(s.toUrl('   '), isNull);
+    });
+  });
+
+  group('AdBlocker', () {
+    test('blocks exact hosts', () {
+      expect(AdBlocker.isBlocked('https://doubleclick.net/ad'), isTrue);
+      expect(AdBlocker.isBlocked('https://popads.net/x'), isTrue);
+    });
+
+    test('blocks subdomains of listed hosts', () {
+      expect(AdBlocker.isBlocked('https://stats.doubleclick.net/a.gif'),
+          isTrue);
+      expect(AdBlocker.isBlocked('https://ads.eu.criteo.com/'), isTrue);
+    });
+
+    test('allows regular sites', () {
+      expect(AdBlocker.isBlocked('https://www.youtube.com/watch?v=1'), isFalse);
+      expect(AdBlocker.isBlocked('https://www.google.com/search?q=ads'),
+          isFalse);
+    });
+
+    test('handles malformed input', () {
+      expect(AdBlocker.isBlocked(null), isFalse);
+      expect(AdBlocker.isBlocked(''), isFalse);
+      expect(AdBlocker.isBlocked('not a url'), isFalse);
     });
   });
 }

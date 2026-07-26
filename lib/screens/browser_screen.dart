@@ -12,6 +12,8 @@ import '../providers/bookmarks_provider.dart';
 import '../providers/history_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/tabs_provider.dart';
+import '../services/adblock.dart';
+import '../services/download_service.dart';
 import '../services/tv_js.dart';
 import '../services/voice_service.dart';
 import '../widgets/cursor_overlay.dart';
@@ -34,6 +36,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
   final FocusNode _pageKeys = FocusNode(debugLabel: 'page');
   final FocusNode _toolbarNode = FocusNode(debugLabel: 'toolbar');
   final VoiceService _voice = VoiceService();
+  final DownloadService _downloads = DownloadService();
 
   Offset _cursor = const Offset(400, 250);
   Size _viewportSize = Size.zero;
@@ -375,6 +378,88 @@ class _BrowserScreenState extends State<BrowserScreen> {
     }
   }
 
+  // ------------------------------------------------------------- downloads
+
+  Future<void> _handleDownload(DownloadStartRequest request) async {
+    final url = request.url.toString();
+    var name = request.suggestedFilename ?? 'download.bin';
+    if (name.isEmpty) {
+      try {
+        final seg = Uri.parse(url).pathSegments;
+        name = seg.isNotEmpty && seg.last.isNotEmpty ? seg.last : 'download.bin';
+      } catch (_) {
+        name = 'download.bin';
+      }
+    }
+    final size = DownloadService.formatSize(request.contentLength);
+    final ok = await confirmDialog(
+      context,
+      'Download file?',
+      size.isEmpty ? name : '$name  ($size)',
+      okLabel: 'Download',
+    );
+    if (!ok || !mounted) return;
+
+    final progress = ValueNotifier<String>(
+        size.isEmpty ? 'Downloading…' : 'Downloading… 0%');
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: TvStyle.surface,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(TvStyle.radius)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 18),
+              ValueListenableBuilder<String>(
+                valueListenable: progress,
+                builder: (context, text, _) => Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5)),
+                    const SizedBox(width: 14),
+                    Text(text),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ));
+
+    final error = await _downloads.downloadAndSave(
+      url: url,
+      fileName: name,
+      mimeType: request.mimeType,
+      onProgress: (received, total) {
+        if (total != null && total > 0) {
+          final pct = (received * 100 / total).clamp(0, 100).toStringAsFixed(0);
+          progress.value = 'Downloading… $pct%';
+        } else {
+          progress.value =
+              'Downloading… ${DownloadService.formatSize(received)}';
+        }
+      },
+    );
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // close progress
+    _toast(error == null
+        ? 'Saved to Downloads ✔'
+        : 'Download failed: $error');
+  }
+
   // ------------------------------------------------------------------ build
 
   @override
@@ -475,10 +560,45 @@ class _BrowserScreenState extends State<BrowserScreen> {
         loadWithOverviewMode: true,
         supportZoom: false,
         userAgent: _settings.userAgent,
-        textZoom: 110,
+        textZoom: _settings.textZoom,
         verticalScrollBarEnabled: false,
         horizontalScrollBarEnabled: false,
       ),
+      shouldInterceptRequest: (controller, request) async {
+        if (!_settings.adBlockEnabled) return null;
+        final url = request.url.toString();
+        if (url.startsWith('http') && AdBlocker.isBlocked(url)) {
+          return WebResourceResponse(
+            data: Uint8List(0),
+            statusCode: 204,
+            reasonPhrase: 'No Content',
+            contentType: 'text/plain',
+          );
+        }
+        return null;
+      },
+      shouldOverrideUrlLoading: (controller, navigationAction) async {
+        final request = navigationAction.request;
+        final url = request.url?.toString() ?? '';
+        final isMainFrame = navigationAction.isForMainFrame;
+        if (!isMainFrame) return NavigationActionPolicy.ALLOW;
+        // Pop-ups / new windows: never open a real new window (we have no
+        // multi-window support). Gestured pop-ups load in the current tab,
+        // silent ad pop-ups are cancelled.
+        final asksNewWindow = navigationAction.targetFrame == null;
+        if (asksNewWindow && url.isNotEmpty) {
+          final gestured = navigationAction.hasGesture ?? false;
+          if (gestured) {
+            unawaited(controller.loadUrl(
+                urlRequest: URLRequest(url: WebUri(url))));
+          }
+          return NavigationActionPolicy.CANCEL;
+        }
+        return NavigationActionPolicy.ALLOW;
+      },
+      onDownloadStartRequest: (controller, request) {
+        unawaited(_handleDownload(request));
+      },
       onWebViewCreated: (controller) {
         tab.controller = controller;
         unawaited(controller.evaluateJavascript(

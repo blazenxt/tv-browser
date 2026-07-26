@@ -12,6 +12,9 @@ class TabsProvider extends ChangeNotifier {
   late int _currentIndex;
   int _counter = 0;
 
+  /// Returns the URL new tabs should open (null = built-in start page).
+  String? Function()? newTabUrlResolver;
+
   String _nextId() => 'tab_${_counter++}';
 
   List<BrowserTab> get tabs => List.unmodifiable(_tabs);
@@ -28,7 +31,10 @@ class TabsProvider extends ChangeNotifier {
   }
 
   BrowserTab newTab({String? url, String? title, bool select = true}) {
-    final tab = BrowserTab(id: _nextId(), url: url, title: title);
+    final tab = BrowserTab(
+        id: _nextId(),
+        url: url ?? newTabUrlResolver?.call(),
+        title: title);
     _tabs.add(tab);
     if (select) _currentIndex = _tabs.length - 1;
     notifyListeners();

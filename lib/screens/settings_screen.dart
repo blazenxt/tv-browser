@@ -83,6 +83,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             _Section(
+              title: 'Ad & popup blocker',
+              subtitle: 'Blocks known ad and tracker networks (applies to new pages)',
+              options: [
+                _Option('On', selected: settings.adBlockEnabled,
+                    onTap: () => settings.setAdBlockEnabled(true)),
+                _Option('Off', selected: !settings.adBlockEnabled,
+                    onTap: () => settings.setAdBlockEnabled(false)),
+              ],
+            ),
+            _Section(
+              title: 'Text size on websites',
+              subtitle: 'Applies to tabs opened afterwards',
+              options: [
+                _Option('Normal',
+                    selected: settings.textScale == TextScaleOption.small,
+                    onTap: () => settings.setTextScale(TextScaleOption.small)),
+                _Option('Large',
+                    selected: settings.textScale == TextScaleOption.medium,
+                    onTap: () => settings.setTextScale(TextScaleOption.medium)),
+                _Option('Extra large',
+                    selected: settings.textScale == TextScaleOption.large,
+                    onTap: () => settings.setTextScale(TextScaleOption.large)),
+              ],
+            ),
+            _Section(
               title: 'Website requests',
               subtitle: 'Desktop mode can fix sites that look mobile-sized on TV',
               options: [
@@ -94,6 +119,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     selected: settings.userAgentMode == UserAgentMode.desktop,
                     onTap: () =>
                         settings.setUserAgentMode(UserAgentMode.desktop)),
+              ],
+            ),
+            _Section(
+              title: 'New tabs open',
+              options: [
+                _Option('Start page',
+                    selected: settings.newTabPage == NewTabPage.startPage,
+                    onTap: () => settings.setNewTabPage(NewTabPage.startPage)),
+                _Option(
+                    settings.newTabPage == NewTabPage.custom &&
+                            settings.customHomepage.isNotEmpty
+                        ? settings.customHomepage
+                        : 'Custom address…',
+                    selected: settings.newTabPage == NewTabPage.custom,
+                    onTap: () async {
+                      final input = await AddressDialog.show(
+                          context, settings.customHomepage, _voice);
+                      if (input != null) {
+                        final url = settings.toUrl(input);
+                        if (url != null) {
+                          settings.setCustomHomepage(url);
+                          settings.setNewTabPage(NewTabPage.custom);
+                        }
+                      }
+                    }),
               ],
             ),
             const SizedBox(height: 8),
