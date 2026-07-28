@@ -39,14 +39,25 @@ class HistoryEntry {
 
 /// One browser tab. A tab with [url] == null shows the built-in start page.
 class BrowserTab {
-  BrowserTab({required this.id, this.url, String? title})
-      : title = title ?? 'New Tab';
+  BrowserTab({
+    required this.id,
+    this.url,
+    String? title,
+    this.isIncognito = false,
+    this.desktopModeOverride,
+    this.pageZoom = 1,
+  }) : title = title ?? (isIncognito ? 'Incognito' : 'New Tab');
 
   final String id;
   String? url;
   String title;
+  final bool isIncognito;
+  bool? desktopModeOverride;
+  double pageZoom;
   int progress = 0;
   bool isLoading = false;
+  bool canGoBack = false;
+  bool canGoForward = false;
 
   /// Set when the main frame fails to load; shows an error overlay.
   String? error;
@@ -64,5 +75,69 @@ class BrowserTab {
     } catch (_) {
       return u;
     }
+  }
+
+  bool get isSecure => url?.startsWith('https://') ?? false;
+
+  Map<String, dynamic> toSessionJson() => {
+        'url': url,
+        'title': title,
+        'desktopModeOverride': desktopModeOverride,
+        'pageZoom': pageZoom,
+      };
+}
+
+enum DownloadState { downloading, complete, failed }
+
+class DownloadEntry {
+  DownloadEntry({
+    required this.id,
+    required this.fileName,
+    required this.url,
+    required this.startedAt,
+    this.received = 0,
+    this.total,
+    this.state = DownloadState.downloading,
+    this.error,
+  });
+
+  final String id;
+  final String fileName;
+  final String url;
+  final int startedAt;
+  int received;
+  int? total;
+  DownloadState state;
+  String? error;
+
+  double? get progress => total != null && total! > 0
+      ? (received / total!).clamp(0.0, 1.0).toDouble()
+      : null;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'fileName': fileName,
+        'url': url,
+        'startedAt': startedAt,
+        'received': received,
+        'total': total,
+        'state': state.index,
+        'error': error,
+      };
+
+  factory DownloadEntry.fromJson(Map<String, dynamic> json) {
+    final stateIndex = (json['state'] as num?)?.toInt() ?? 2;
+    return DownloadEntry(
+      id: (json['id'] ?? '').toString(),
+      fileName: (json['fileName'] ?? 'download').toString(),
+      url: (json['url'] ?? '').toString(),
+      startedAt: (json['startedAt'] as num?)?.toInt() ?? 0,
+      received: (json['received'] as num?)?.toInt() ?? 0,
+      total: (json['total'] as num?)?.toInt(),
+      state: stateIndex >= 0 && stateIndex < DownloadState.values.length
+          ? DownloadState.values[stateIndex]
+          : DownloadState.failed,
+      error: json['error']?.toString(),
+    );
   }
 }

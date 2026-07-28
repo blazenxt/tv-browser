@@ -114,6 +114,31 @@ class RemoteControlService {
         y,
       );
 
+  Future<bool> openExternal(String url) async {
+    try {
+      return await _channel.invokeMethod<bool>('openExternal', {'url': url}) ??
+          false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  Future<bool> shareText(String text, {String title = 'Share page'}) async {
+    try {
+      return await _channel.invokeMethod<bool>('shareText', {
+            'text': text,
+            'title': title,
+          }) ??
+          false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   /// Moves Android input focus back from a platform WebView to Flutter.
   Future<bool> focusFlutter() async {
     try {

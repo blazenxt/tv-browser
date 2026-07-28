@@ -1,10 +1,12 @@
 package com.example.tv_browser
 
 import android.content.ContentValues
+import android.content.Intent
 import android.os.Build
 import android.os.Environment
 import android.os.SystemClock
 import android.provider.MediaStore
+import android.net.Uri
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -63,6 +65,34 @@ class MainActivity : FlutterActivity() {
                 "focusFlutter" -> {
                     focusedWebView()?.clearFocus()
                     result.success(findFlutterView(window.decorView)?.requestFocus() ?: false)
+                }
+                "openExternal" -> {
+                    val url = call.argument<String>("url").orEmpty()
+                    try {
+                        if (url.isBlank()) {
+                            result.success(false)
+                        } else {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            result.success(true)
+                        }
+                    } catch (_: Exception) {
+                        result.success(false)
+                    }
+                }
+                "shareText" -> {
+                    val text = call.argument<String>("text").orEmpty()
+                    val title = call.argument<String>("title") ?: "Share page"
+                    if (text.isBlank()) {
+                        result.success(false)
+                    } else {
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, text)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(Intent.createChooser(sendIntent, title))
+                        result.success(true)
+                    }
                 }
                 else -> result.notImplemented()
             }

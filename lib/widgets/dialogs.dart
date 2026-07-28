@@ -106,7 +106,7 @@ class _AddressDialogState extends State<AddressDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: TvStyle.surface,
+      backgroundColor: TvStyle.surfaceOf(context),
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(TvStyle.radius)),
       child: Padding(
@@ -125,15 +125,16 @@ class _AddressDialogState extends State<AddressDialog> {
               style: const TextStyle(fontSize: 18),
               decoration: InputDecoration(
                 filled: true,
-                fillColor: TvStyle.background,
+                fillColor: TvStyle.backgroundOf(context),
                 hintText: 'e.g. youtube.com',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(TvStyle.radius),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(TvStyle.radius),
-                  borderSide: const BorderSide(
-                      color: TvStyle.focusBorder, width: TvStyle.borderWidth),
+                  borderSide: BorderSide(
+                      color: TvStyle.focusOf(context),
+                      width: TvStyle.borderWidth),
                 ),
               ),
               onSubmitted: (_) => _go(),
@@ -161,9 +162,12 @@ class _AddressDialogState extends State<AddressDialog> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Tip: DPAD select + type with the on-screen keyboard',
-              style: TextStyle(fontSize: 13, color: Colors.white54),
+              style: TextStyle(
+                fontSize: 13,
+                color: TvStyle.secondaryTextOf(context),
+              ),
             ),
           ],
         ),
@@ -275,7 +279,7 @@ class _WebInputDialogState extends State<WebInputDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: TvStyle.surface,
+      backgroundColor: TvStyle.surfaceOf(context),
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(TvStyle.radius)),
       child: Padding(
@@ -295,14 +299,15 @@ class _WebInputDialogState extends State<WebInputDialog> {
               style: const TextStyle(fontSize: 18),
               decoration: InputDecoration(
                 filled: true,
-                fillColor: TvStyle.background,
+                fillColor: TvStyle.backgroundOf(context),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(TvStyle.radius),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(TvStyle.radius),
-                  borderSide: const BorderSide(
-                      color: TvStyle.focusBorder, width: TvStyle.borderWidth),
+                  borderSide: BorderSide(
+                      color: TvStyle.focusOf(context),
+                      width: TvStyle.borderWidth),
                 ),
               ),
               onSubmitted: widget.multiline ? null : (_) => _finish(true),
@@ -351,7 +356,7 @@ Future<bool> confirmDialog(BuildContext context, String title, String message,
   final result = await showDialog<bool>(
     context: context,
     builder: (context) => Dialog(
-      backgroundColor: TvStyle.surface,
+      backgroundColor: TvStyle.surfaceOf(context),
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(TvStyle.radius)),
       child: Padding(
@@ -364,7 +369,10 @@ Future<bool> confirmDialog(BuildContext context, String title, String message,
                 style:
                     const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
-            Text(message, style: const TextStyle(color: Colors.white70)),
+            Text(
+              message,
+              style: TextStyle(color: TvStyle.secondaryTextOf(context)),
+            ),
             const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -388,4 +396,120 @@ Future<bool> confirmDialog(BuildContext context, String title, String message,
     ),
   );
   return result ?? false;
+}
+
+/// TV-friendly replacement for JavaScript alert().
+Future<void> messageDialog(
+  BuildContext context,
+  String title,
+  String message,
+) async {
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => Dialog(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              style: TextStyle(color: TvStyle.secondaryTextOf(dialogContext)),
+            ),
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TvButton(
+                label: 'OK',
+                selected: true,
+                autofocus: true,
+                onPressed: () => Navigator.of(dialogContext).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// TV-friendly replacement for JavaScript prompt().
+Future<String?> textPromptDialog(
+  BuildContext context, {
+  required String title,
+  required String message,
+  String initial = '',
+}) async {
+  final controller = TextEditingController(text: initial);
+  final okNode = FocusNode(debugLabel: 'prompt ok');
+  late final FocusNode fieldNode;
+  fieldNode = FocusNode(
+    debugLabel: 'prompt field',
+    onKeyEvent: (node, event) {
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        okNode.requestFocus();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    },
+  );
+  final result = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) => Dialog(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              style: TextStyle(color: TvStyle.secondaryTextOf(dialogContext)),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: controller,
+              focusNode: fieldNode,
+              autofocus: true,
+              onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TvButton(
+                  label: 'Cancel',
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                ),
+                const SizedBox(width: 12),
+                TvButton(
+                  focusNode: okNode,
+                  label: 'OK',
+                  selected: true,
+                  onPressed: () =>
+                      Navigator.of(dialogContext).pop(controller.text),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  controller.dispose();
+  fieldNode.dispose();
+  okNode.dispose();
+  return result;
 }

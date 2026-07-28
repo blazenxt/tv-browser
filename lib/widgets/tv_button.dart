@@ -5,13 +5,34 @@ import 'package:flutter/services.dart';
 class TvStyle {
   TvStyle._();
 
-  static const Color background = Color(0xFF0E1116);
-  static const Color surface = Color(0xFF1A212B);
-  static const Color surfaceAlt = Color(0xFF232C38);
-  static const Color accent = Color(0xFFFFD740);
-  static const Color focusBorder = accent;
+  static const Color accent = Color(0xFF4285F4);
+  static const Color accentLight = Color(0xFF8AB4F8);
+  static const Color chromeRed = Color(0xFFEA4335);
+  static const Color chromeYellow = Color(0xFFFBBC04);
+  static const Color chromeGreen = Color(0xFF34A853);
   static const double borderWidth = 3.0;
-  static const double radius = 10.0;
+  static const double radius = 12.0;
+
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color backgroundOf(BuildContext context) =>
+      Theme.of(context).scaffoldBackgroundColor;
+
+  static Color surfaceOf(BuildContext context) =>
+      Theme.of(context).colorScheme.surface;
+
+  static Color surfaceAltOf(BuildContext context) =>
+      isDark(context) ? const Color(0xFF3C4043) : const Color(0xFFE8EAED);
+
+  static Color textOf(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurface;
+
+  static Color secondaryTextOf(BuildContext context) =>
+      Theme.of(context).colorScheme.onSurface.withOpacity(0.66);
+
+  static Color focusOf(BuildContext context) =>
+      isDark(context) ? accentLight : const Color(0xFF1967D2);
 }
 
 /// A button designed for TV: clearly visible focus ring, activated with
@@ -112,13 +133,15 @@ class _TvButtonState extends State<TvButton> {
   @override
   Widget build(BuildContext context) {
     final showRing = _enabled && (_focused || _hover);
+    final surface = TvStyle.surfaceOf(context);
+    final textColor = TvStyle.textOf(context);
     final bg = !_enabled
-        ? TvStyle.surface.withOpacity(0.4)
+        ? surface.withOpacity(0.4)
         : widget.selected
-            ? TvStyle.accent.withOpacity(0.18)
+            ? TvStyle.accent.withOpacity(TvStyle.isDark(context) ? 0.28 : 0.14)
             : _focused
-                ? TvStyle.surfaceAlt
-                : TvStyle.surface;
+                ? TvStyle.surfaceAltOf(context)
+                : surface;
 
     final content = widget.child ??
         Row(
@@ -130,8 +153,8 @@ class _TvButtonState extends State<TvButton> {
                 widget.icon,
                 size: 22,
                 color: _enabled
-                    ? (widget.selected ? TvStyle.accent : Colors.white)
-                    : Colors.white38,
+                    ? (widget.selected ? TvStyle.accent : textColor)
+                    : textColor.withOpacity(0.36),
               ),
             ],
             if (widget.icon != null && widget.label != null)
@@ -145,8 +168,8 @@ class _TvButtonState extends State<TvButton> {
                   style: TextStyle(
                     fontSize: 16,
                     color: _enabled
-                        ? (widget.selected ? TvStyle.accent : Colors.white)
-                        : Colors.white38,
+                        ? (widget.selected ? TvStyle.accent : textColor)
+                        : textColor.withOpacity(0.36),
                     fontWeight: _focused ? FontWeight.w600 : FontWeight.w400,
                   ),
                 ),
@@ -180,7 +203,8 @@ class _TvButtonState extends State<TvButton> {
                 color: bg,
                 borderRadius: BorderRadius.circular(TvStyle.radius),
                 border: Border.all(
-                  color: showRing ? TvStyle.focusBorder : Colors.transparent,
+                  color:
+                      showRing ? TvStyle.focusOf(context) : Colors.transparent,
                   width: TvStyle.borderWidth,
                 ),
               ),

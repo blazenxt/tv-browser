@@ -1,9 +1,9 @@
 # TV Browser
 
-A D-pad friendly web browser for **Android TV, Google TV and Fire TV**, built with Flutter.
-Designed from the ground up for the couch: big focus rings, a virtual
-mouse cursor, optional link-jump navigation, voice search, tabs,
-bookmarks and history.
+A Chrome-inspired, D-pad friendly web browser for **Android TV, Google TV and Fire TV**, built with Flutter.
+Designed from the ground up for the couch: a tab strip and omnibox, strong
+focus rings, virtual mouse cursor, link-jump navigation, incognito tabs,
+voice search, bookmarks, history and downloads.
 
 ![TV Browser banner](assets/banner.png)
 
@@ -15,9 +15,12 @@ bookmarks and history.
 | --- | --- |
 | **Virtual mouse cursor** | Move a pointer with the D-pad, click with OK. Native WebView taps work with players and JavaScript-heavy sites. |
 | **Jump mode** | Focus hops directly between links/buttons—even off-screen ones—and scrolls them into view. Switch anytime from the toolbar. |
-| **Tabs** | Multiple tabs with a full-screen switcher. |
-| **Bookmarks** | Star any page; long-press (MENU key) a bookmark on the start page to delete it. |
-| **History** | Recent sites on the start page + full history screen with clear-all. |
+| **Chrome-inspired TV UI** | Tab strip, rounded omnibox, secure-page indicator, page menu and light/dark/system themes. |
+| **Tabs** | Session restore, duplicate/reopen closed tabs, full-screen overview and private incognito tabs. |
+| **Find & zoom** | Find text in the current page and set per-tab page zoom from 50–200%. |
+| **Bookmarks** | Bookmark manager plus new-tab shortcuts; MENU on a shortcut removes it. |
+| **History & downloads** | Dedicated remote-friendly managers, progress tracking and clear-list controls. |
+| **Privacy & security** | Incognito tabs, clear browsing data, Safe Browsing, cookie control, Do Not Track and per-site permission prompts. |
 | **Voice search** | Dictate addresses and searches (where the TV/box has a mic). |
 | **TV-native UI** | Leanback launcher entry with banner, overscan-safe dark UI, big focus outlines. |
 | **Web text fields** | Clicking a text box opens an on-TV dialog (with voice + Done/Enter) — no fighting the WebView for keyboard focus. |
@@ -33,7 +36,7 @@ bookmarks and history.
 | --- | --- | --- |
 | **D-pad arrows** | Move pointer (auto-scrolls at edges) | Highlight next link in that direction |
 | **OK / SELECT** | Click | Click highlighted link |
-| **MENU (≡)** | Open the toolbar (starts in the address bar) | Same |
+| **MENU (≡)** | Open the toolbar; press again for the page menu | Same |
 | **BACK** | Page back → closes tab → home → exit confirm | Same |
 | **D-pad UP at top of page** | Open toolbar | Open toolbar |
 | **MENU on a bookmark (start page)** | Delete bookmark | — |
@@ -99,6 +102,12 @@ android/                        Leanback manifest, banner, icons
 
 ## 🧾 Changelog
 
+**1.3.0** — Chrome-inspired tab strip and omnibox, light/dark/system themes,
+incognito tabs, session restore, reopen/duplicate tab, bookmark and download
+managers, find-in-page, per-tab zoom and desktop mode, page sharing/translation,
+site permission prompts, TV-native JavaScript dialogs, fullscreen media,
+external-app links, clear browsing data and expanded remote/keyboard controls.
+
 **1.2.0** — Reliable Android TV / Google TV / Fire TV remote bridge,
 native WebView cursor taps and hover, improved jump navigation and automatic
 focus scrolling throughout the TV UI.
@@ -112,6 +121,9 @@ history, voice search, settings, TV launcher banner.
 
 ## ⚠️ Known limitations
 
+* This is an independent Chrome-inspired TV interface, not Google Chrome.
+  Google account sync, the Chrome Web Store/extensions, Chrome Password Manager
+  and Google's proprietary browser services are not available.
 * The rendering engine is the **system WebView** — update "Android System
   WebView" from the Play Store for the best compatibility. DRM services
   (Netflix etc.) will not work in any WebView-based browser.

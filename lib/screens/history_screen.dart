@@ -16,7 +16,7 @@ class HistoryScreen extends StatelessWidget {
     final history = context.watch<HistoryProvider>();
     final entries = history.entries;
     return Scaffold(
-      backgroundColor: TvStyle.background,
+      backgroundColor: TvStyle.backgroundOf(context),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(36),
@@ -26,8 +26,8 @@ class HistoryScreen extends StatelessWidget {
               Row(
                 children: [
                   const Text('History',
-                      style: TextStyle(
-                          fontSize: 26, fontWeight: FontWeight.w700)),
+                      style:
+                          TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
                   const Spacer(),
                   if (entries.isNotEmpty)
                     TvButton(
@@ -47,18 +47,21 @@ class HistoryScreen extends StatelessWidget {
               const SizedBox(height: 20),
               Expanded(
                 child: entries.isEmpty
-                    ? const Center(
-                        child: Text('No history yet.',
-                            style: TextStyle(color: Colors.white54)))
+                    ? Center(
+                        child: Text(
+                          'No history yet.',
+                          style: TextStyle(
+                            color: TvStyle.secondaryTextOf(context),
+                          ),
+                        ),
+                      )
                     : ListView.separated(
                         itemCount: entries.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 10),
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (context, i) {
                           final e = entries[i];
                           final time = DateFormat('d MMM, HH:mm').format(
-                              DateTime.fromMillisecondsSinceEpoch(
-                                  e.visitedAt));
+                              DateTime.fromMillisecondsSinceEpoch(e.visitedAt));
                           return TvButton(
                             autofocus: i == 0,
                             onPressed: () => Navigator.of(context).pop(e.url),
@@ -75,23 +78,24 @@ class HistoryScreen extends StatelessWidget {
                                       Text(e.title,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style:
-                                              const TextStyle(fontSize: 15)),
+                                          style: const TextStyle(fontSize: 15)),
                                       const SizedBox(height: 2),
                                       Text(e.url,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                               fontSize: 12,
-                                              color: Colors.white54)),
+                                              color: TvStyle.secondaryTextOf(
+                                                  context))),
                                     ],
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Text(time,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 12,
-                                        color: Colors.white38)),
+                                        color:
+                                            TvStyle.secondaryTextOf(context))),
                                 const SizedBox(width: 10),
                                 TvButton(
                                   icon: Icons.close,

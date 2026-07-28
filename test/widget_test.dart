@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tv_browser/models/models.dart';
+import 'package:tv_browser/providers/downloads_provider.dart';
 import 'package:tv_browser/providers/settings_provider.dart';
+import 'package:tv_browser/providers/tabs_provider.dart';
 import 'package:tv_browser/services/adblock.dart';
 import 'package:tv_browser/services/remote_control_service.dart';
 
@@ -34,6 +37,77 @@ void main() {
     test('returns null for empty input', () async {
       final s = await makeSettings();
       expect(s.toUrl('   '), isNull);
+    });
+  });
+
+  group('Appearance and privacy settings', () {
+    test('persists theme and browser toggles', () async {
+      final settings = await makeSettings();
+      settings.setThemePreference(ThemePreference.light);
+      settings.setRestoreTabs(false);
+      settings.setThirdPartyCookiesEnabled(false);
+
+      expect(settings.themePreference, ThemePreference.light);
+      expect(settings.restoreTabs, isFalse);
+      expect(settings.thirdPartyCookiesEnabled, isFalse);
+    });
+
+    test('ignores invalid saved enum indexes', () async {
+      SharedPreferences.setMockInitialValues({'themePreference': 999});
+      final prefs = await SharedPreferences.getInstance();
+      final settings = SettingsProvider(prefs);
+      expect(settings.themePreference, ThemePreference.system);
+    });
+  });
+
+  group('Tab sessions and incognito', () {
+    test('reopens a closed normal tab', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final tabs = TabsProvider(prefs);
+      final tab = tabs.newTab(url: 'https://example.com');
+      tabs.closeTab(tab.id);
+
+      expect(tabs.canReopenClosedTab, isTrue);
+      final reopened = tabs.reopenClosedTab();
+      expect(reopened?.url, 'https://example.com');
+    });
+
+    test('does not persist incognito tabs', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final tabs = TabsProvider(prefs);
+      tabs.newTab(url: 'https://private.example', incognito: true);
+
+      final restored = TabsProvider(prefs);
+      expect(restored.tabs.any((tab) => tab.isIncognito), isFalse);
+      expect(restored.tabs.any((tab) => tab.url == 'https://private.example'),
+          isFalse);
+    });
+  });
+
+  group('Download history', () {
+    test('tracks completion and failure', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final downloads = DownloadsProvider(prefs);
+      final complete = downloads.start(
+        fileName: 'video.mp4',
+        url: 'https://example.com/video.mp4',
+        total: 100,
+      );
+      downloads.progress(complete, 100, 100);
+      downloads.complete(complete);
+      final failed = downloads.start(
+        fileName: 'bad.zip',
+        url: 'https://example.com/bad.zip',
+      );
+      downloads.fail(failed, 'Network error');
+
+      expect(complete.state, DownloadState.complete);
+      expect(complete.progress, 1);
+      expect(failed.state, DownloadState.failed);
+      expect(failed.error, 'Network error');
     });
   });
 
