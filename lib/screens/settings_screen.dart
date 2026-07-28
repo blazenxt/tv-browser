@@ -185,7 +185,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             const SizedBox(height: 28),
-            const Text('TV Browser 1.0.0 — made with Flutter',
+            const Text('TV Browser 1.2.0 — made with Flutter',
                 style: TextStyle(color: Colors.white38, fontSize: 13)),
           ],
         ),

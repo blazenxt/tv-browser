@@ -51,27 +51,62 @@ class TvButton extends StatefulWidget {
 }
 
 class _TvButtonState extends State<TvButton> {
-  late final FocusNode _node = widget.focusNode ?? FocusNode();
+  late FocusNode _node;
+  late bool _ownsNode;
   bool _focused = false;
   bool _hover = false;
 
   bool get _enabled => widget.onPressed != null;
 
+  @override
+  void initState() {
+    super.initState();
+    _ownsNode = widget.focusNode == null;
+    _node = widget.focusNode ?? FocusNode(debugLabel: 'TvButton');
+  }
+
+  @override
+  void didUpdateWidget(TvButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode == widget.focusNode) return;
+    if (_ownsNode) _node.dispose();
+    _ownsNode = widget.focusNode == null;
+    _node = widget.focusNode ?? FocusNode(debugLabel: 'TvButton');
+    _focused = _node.hasFocus;
+  }
+
+  @override
+  void dispose() {
+    if (_ownsNode) _node.dispose();
+    super.dispose();
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.select ||
-        key == LogicalKeyboardKey.enter ||
-        key == LogicalKeyboardKey.numpadEnter ||
-        key == LogicalKeyboardKey.gameButtonA) {
+    if (isActivateKey(key)) {
       widget.onPressed?.call();
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.contextMenu && widget.onMenu != null) {
+    if (isMenuKey(key) && widget.onMenu != null) {
       widget.onMenu!.call();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
+  }
+
+  void _onFocusChange(bool focused) {
+    if (mounted) setState(() => _focused = focused);
+    if (!focused) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_node.hasFocus) return;
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+      );
+    });
   }
 
   @override
@@ -87,8 +122,7 @@ class _TvButtonState extends State<TvButton> {
 
     final content = widget.child ??
         Row(
-          mainAxisSize:
-              widget.expanded ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisSize: widget.expanded ? MainAxisSize.max : MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (widget.icon != null) ...[
@@ -113,38 +147,45 @@ class _TvButtonState extends State<TvButton> {
                     color: _enabled
                         ? (widget.selected ? TvStyle.accent : Colors.white)
                         : Colors.white38,
-                    fontWeight:
-                        _focused ? FontWeight.w600 : FontWeight.w400,
+                    fontWeight: _focused ? FontWeight.w600 : FontWeight.w400,
                   ),
                 ),
               ),
           ],
         );
 
-    return Focus(
-      focusNode: _node,
-      autofocus: widget.autofocus,
-      onKeyEvent: _onKey,
-      onFocusChange: (f) => setState(() => _focused = f),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onPressed,
-          behavior: HitTestBehavior.opaque,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 100),
-            padding: widget.padding ??
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(TvStyle.radius),
-              border: Border.all(
-                color: showRing ? TvStyle.focusBorder : Colors.transparent,
-                width: TvStyle.borderWidth,
+    return Semantics(
+      button: true,
+      enabled: _enabled,
+      selected: widget.selected,
+      label: widget.label ?? widget.tooltip,
+      child: Focus(
+        focusNode: _node,
+        autofocus: widget.autofocus,
+        canRequestFocus: _enabled,
+        skipTraversal: !_enabled,
+        onKeyEvent: _onKey,
+        onFocusChange: _onFocusChange,
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            onTap: widget.onPressed,
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              padding: widget.padding ??
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(TvStyle.radius),
+                border: Border.all(
+                  color: showRing ? TvStyle.focusBorder : Colors.transparent,
+                  width: TvStyle.borderWidth,
+                ),
               ),
+              child: content,
             ),
-            child: content,
           ),
         ),
       ),
@@ -157,12 +198,19 @@ bool isActivateKey(LogicalKeyboardKey key) =>
     key == LogicalKeyboardKey.select ||
     key == LogicalKeyboardKey.enter ||
     key == LogicalKeyboardKey.numpadEnter ||
+    key == LogicalKeyboardKey.space ||
     key == LogicalKeyboardKey.gameButtonA;
 
 bool isBackKey(LogicalKeyboardKey key) =>
     key == LogicalKeyboardKey.goBack ||
     key == LogicalKeyboardKey.browserBack ||
-    key == LogicalKeyboardKey.escape;
+    key == LogicalKeyboardKey.escape ||
+    key == LogicalKeyboardKey.gameButtonB;
 
 bool isMenuKey(LogicalKeyboardKey key) =>
-    key == LogicalKeyboardKey.contextMenu || key == LogicalKeyboardKey.f1;
+    key == LogicalKeyboardKey.contextMenu ||
+    key == LogicalKeyboardKey.browserSearch ||
+    key == LogicalKeyboardKey.mediaTopMenu ||
+    key == LogicalKeyboardKey.tvContentsMenu ||
+    key == LogicalKeyboardKey.f1 ||
+    key == LogicalKeyboardKey.f10;

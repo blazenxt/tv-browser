@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/voice_service.dart';
 import 'tv_button.dart';
@@ -38,8 +39,11 @@ class AddressDialog extends StatefulWidget {
 class _AddressDialogState extends State<AddressDialog> {
   late final TextEditingController _controller =
       TextEditingController(text: widget.initial);
+  late final FocusNode _fieldNode = FocusNode(onKeyEvent: _onFieldKey);
+  final FocusNode _voiceNode = FocusNode(debugLabel: 'address voice');
+  final FocusNode _goNode = FocusNode(debugLabel: 'address go');
   bool _listening = false;
-  bool _voiceAvailable = true;
+  bool _voiceAvailable = false;
 
   @override
   void initState() {
@@ -49,6 +53,24 @@ class _AddressDialogState extends State<AddressDialog> {
     });
     _controller.selection =
         TextSelection(baseOffset: 0, extentOffset: _controller.text.length);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _fieldNode.dispose();
+    _voiceNode.dispose();
+    _goNode.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _onFieldKey(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      (_voiceAvailable ? _voiceNode : _goNode).requestFocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   Future<void> _listen() async {
@@ -98,6 +120,7 @@ class _AddressDialogState extends State<AddressDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _controller,
+              focusNode: _fieldNode,
               autofocus: true,
               style: const TextStyle(fontSize: 18),
               decoration: InputDecoration(
@@ -121,6 +144,7 @@ class _AddressDialogState extends State<AddressDialog> {
               children: [
                 if (_voiceAvailable)
                   TvButton(
+                    focusNode: _voiceNode,
                     icon: _listening ? Icons.mic : Icons.mic_none,
                     label: _listening ? 'Listening…' : 'Voice',
                     selected: _listening,
@@ -128,6 +152,7 @@ class _AddressDialogState extends State<AddressDialog> {
                   ),
                 const Spacer(),
                 TvButton(
+                  focusNode: _goNode,
                   icon: Icons.search,
                   label: 'Go',
                   selected: true,
@@ -171,8 +196,8 @@ class WebInputDialog extends StatefulWidget {
     return showDialog<WebInputResult>(
       context: context,
       barrierDismissible: true,
-      builder: (_) => WebInputDialog(
-          initial: initial, multiline: multiline, voice: voice),
+      builder: (_) =>
+          WebInputDialog(initial: initial, multiline: multiline, voice: voice),
     );
   }
 
@@ -183,8 +208,12 @@ class WebInputDialog extends StatefulWidget {
 class _WebInputDialogState extends State<WebInputDialog> {
   late final TextEditingController _controller =
       TextEditingController(text: widget.initial);
+  late final FocusNode _fieldNode = FocusNode(onKeyEvent: _onFieldKey);
+  final FocusNode _voiceNode = FocusNode(debugLabel: 'web input voice');
+  final FocusNode _doneNode = FocusNode(debugLabel: 'web input done');
+  final FocusNode _submitNode = FocusNode(debugLabel: 'web input submit');
   bool _listening = false;
-  bool _voiceAvailable = true;
+  bool _voiceAvailable = false;
 
   @override
   void initState() {
@@ -194,6 +223,25 @@ class _WebInputDialogState extends State<WebInputDialog> {
     });
     _controller.selection =
         TextSelection.collapsed(offset: _controller.text.length);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _fieldNode.dispose();
+    _voiceNode.dispose();
+    _doneNode.dispose();
+    _submitNode.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _onFieldKey(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      (_voiceAvailable ? _voiceNode : _doneNode).requestFocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   Future<void> _listen() async {
@@ -241,6 +289,7 @@ class _WebInputDialogState extends State<WebInputDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _controller,
+              focusNode: _fieldNode,
               autofocus: true,
               maxLines: widget.multiline ? 4 : 1,
               style: const TextStyle(fontSize: 18),
@@ -257,14 +306,16 @@ class _WebInputDialogState extends State<WebInputDialog> {
                 ),
               ),
               onSubmitted: widget.multiline ? null : (_) => _finish(true),
-              textInputAction:
-                  widget.multiline ? TextInputAction.newline : TextInputAction.go,
+              textInputAction: widget.multiline
+                  ? TextInputAction.newline
+                  : TextInputAction.go,
             ),
             const SizedBox(height: 18),
             Row(
               children: [
                 if (_voiceAvailable)
                   TvButton(
+                    focusNode: _voiceNode,
                     icon: _listening ? Icons.mic : Icons.mic_none,
                     label: _listening ? 'Listening…' : 'Voice',
                     selected: _listening,
@@ -272,12 +323,14 @@ class _WebInputDialogState extends State<WebInputDialog> {
                   ),
                 const Spacer(),
                 TvButton(
+                  focusNode: _doneNode,
                   icon: Icons.check,
                   label: 'Done',
                   onPressed: () => _finish(false),
                 ),
                 const SizedBox(width: 12),
                 TvButton(
+                  focusNode: _submitNode,
                   icon: Icons.subdirectory_arrow_left,
                   label: 'Done + Enter',
                   selected: true,

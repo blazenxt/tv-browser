@@ -1,6 +1,6 @@
 # TV Browser
 
-A D-pad friendly web browser for **Android TV**, built with Flutter.
+A D-pad friendly web browser for **Android TV, Google TV and Fire TV**, built with Flutter.
 Designed from the ground up for the couch: big focus rings, a virtual
 mouse cursor, optional link-jump navigation, voice search, tabs,
 bookmarks and history.
@@ -13,8 +13,8 @@ bookmarks and history.
 
 | Feature | Details |
 | --- | --- |
-| **Virtual mouse cursor** | Move a pointer with the D-pad, click with OK. Works on almost every website. |
-| **Jump mode** | Focus hops directly between links/buttons (great for simple sites). Switch anytime from the toolbar. |
+| **Virtual mouse cursor** | Move a pointer with the D-pad, click with OK. Native WebView taps work with players and JavaScript-heavy sites. |
+| **Jump mode** | Focus hops directly between links/buttons—even off-screen ones—and scrolls them into view. Switch anytime from the toolbar. |
 | **Tabs** | Multiple tabs with a full-screen switcher. |
 | **Bookmarks** | Star any page; long-press (MENU key) a bookmark on the start page to delete it. |
 | **History** | Recent sites on the start page + full history screen with clear-all. |
@@ -98,6 +98,10 @@ android/                        Leanback manifest, banner, icons
   `CursorSpeed` in settings provider.
 
 ## 🧾 Changelog
+
+**1.2.0** — Reliable Android TV / Google TV / Fire TV remote bridge,
+native WebView cursor taps and hover, improved jump navigation and automatic
+focus scrolling throughout the TV UI.
 
 **1.1.0** — Ad & popup blocker (with toggle), downloads to the public
 Downloads folder via MediaStore, text-size setting, customizable new-tab

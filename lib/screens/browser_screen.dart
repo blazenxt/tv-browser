@@ -14,6 +14,7 @@ import '../providers/settings_provider.dart';
 import '../providers/tabs_provider.dart';
 import '../services/adblock.dart';
 import '../services/download_service.dart';
+import '../services/remote_control_service.dart';
 import '../services/tv_js.dart';
 import '../services/voice_service.dart';
 import '../widgets/cursor_overlay.dart';
@@ -34,14 +35,17 @@ class BrowserScreen extends StatefulWidget {
 
 class _BrowserScreenState extends State<BrowserScreen> {
   final FocusNode _pageKeys = FocusNode(debugLabel: 'page');
-  final FocusNode _toolbarNode = FocusNode(debugLabel: 'toolbar');
+  final FocusScopeNode _toolbarNode = FocusScopeNode(debugLabel: 'toolbar');
+  final FocusNode _addressNode = FocusNode(debugLabel: 'toolbar address');
   final VoiceService _voice = VoiceService();
   final DownloadService _downloads = DownloadService();
+  final RemoteControlService _remote = RemoteControlService.instance;
 
   Offset _cursor = const Offset(400, 250);
   Size _viewportSize = Size.zero;
   bool _cursorInitialized = false;
   bool _toolbarVisible = false;
+  bool _backInProgress = false;
   Timer? _toolbarTimer;
 
   SettingsProvider get _settings => context.read<SettingsProvider>();
@@ -53,10 +57,18 @@ class _BrowserScreenState extends State<BrowserScreen> {
       : NavModeLike.cursor;
 
   @override
+  void initState() {
+    super.initState();
+    _remote.keyHandler = _handleNativeRemoteKey;
+  }
+
+  @override
   void dispose() {
     _toolbarTimer?.cancel();
+    _remote.keyHandler = null;
     _pageKeys.dispose();
     _toolbarNode.dispose();
+    _addressNode.dispose();
     super.dispose();
   }
 
@@ -65,46 +77,86 @@ class _BrowserScreenState extends State<BrowserScreen> {
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     final isDown = event is KeyDownEvent;
     final isRepeat = event is KeyRepeatEvent;
-    if (!isDown && !isRepeat) return KeyEventResult.ignored;
-    final key = event.logicalKey;
-    final tab = _tabs.current;
+    final button = _buttonForLogicalKey(event.logicalKey);
+    if (button == null) return KeyEventResult.ignored;
+    return _handleRemoteButton(
+      button,
+      isDown: isDown,
+      isRepeat: isRepeat,
+    )
+        ? KeyEventResult.handled
+        : KeyEventResult.ignored;
+  }
 
-    // While focus sits inside the toolbar let its buttons/traversal work.
-    final toolbarFocused = _toolbarVisible && _toolbarNode.hasFocus;
-    if (toolbarFocused) {
+  bool _handleNativeRemoteKey(NativeRemoteKeyEvent event) {
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return false;
+    return _handleRemoteButton(
+      event.button,
+      isDown: event.isDown,
+      isRepeat: event.isRepeat,
+    );
+  }
+
+  RemoteButton? _buttonForLogicalKey(LogicalKeyboardKey key) {
+    if (key == LogicalKeyboardKey.arrowUp) return RemoteButton.up;
+    if (key == LogicalKeyboardKey.arrowDown) return RemoteButton.down;
+    if (key == LogicalKeyboardKey.arrowLeft) return RemoteButton.left;
+    if (key == LogicalKeyboardKey.arrowRight) return RemoteButton.right;
+    if (isActivateKey(key)) return RemoteButton.activate;
+    if (isBackKey(key)) return RemoteButton.back;
+    if (isMenuKey(key)) return RemoteButton.menu;
+    return null;
+  }
+
+  bool _handleRemoteButton(
+    RemoteButton button, {
+    required bool isDown,
+    required bool isRepeat,
+  }) {
+    if (!isDown && !isRepeat) return false; // key-up
+    final initialDown = isDown && !isRepeat;
+
+    // While focus sits inside the toolbar, left/right use Flutter's normal
+    // focus traversal. DOWN, MENU and BACK return to the page.
+    if (_toolbarVisible && _toolbarNode.hasFocus) {
       _resetToolbarTimer();
-      if ((key == LogicalKeyboardKey.arrowDown && isDown) ||
-          (isMenuKey(key) && isDown) ||
-          (isBackKey(key) && isDown)) {
+      if ((button == RemoteButton.down && initialDown) ||
+          (button == RemoteButton.menu && initialDown) ||
+          (button == RemoteButton.back && initialDown)) {
         _hideToolbar();
-        return KeyEventResult.handled;
+        return true;
       }
-      return KeyEventResult.ignored;
+      return false;
     }
 
-    if (isMenuKey(key) && isDown) {
+    if (button == RemoteButton.menu && initialDown) {
       _showToolbar();
-      return KeyEventResult.handled;
+      return true;
     }
-    if (isBackKey(key) && isDown) {
+    if (button == RemoteButton.back && initialDown) {
       unawaited(_onBack());
-      return KeyEventResult.handled;
+      return true;
     }
 
-    if (tab.isHome) return KeyEventResult.ignored;
+    final tab = _tabs.current;
+    if (tab.isHome) return false;
 
-    if (key == LogicalKeyboardKey.arrowUp ||
-        key == LogicalKeyboardKey.arrowDown ||
-        key == LogicalKeyboardKey.arrowLeft ||
-        key == LogicalKeyboardKey.arrowRight) {
+    final key = switch (button) {
+      RemoteButton.up => LogicalKeyboardKey.arrowUp,
+      RemoteButton.down => LogicalKeyboardKey.arrowDown,
+      RemoteButton.left => LogicalKeyboardKey.arrowLeft,
+      RemoteButton.right => LogicalKeyboardKey.arrowRight,
+      _ => null,
+    };
+    if (key != null) {
       _handleArrow(key, isRepeat);
-      return KeyEventResult.handled;
+      return true;
     }
-    if (isActivateKey(key) && isDown) {
+    if (button == RemoteButton.activate && initialDown) {
       unawaited(_activate());
-      return KeyEventResult.handled;
+      return true;
     }
-    return KeyEventResult.ignored;
+    return false;
   }
 
   void _handleArrow(LogicalKeyboardKey key, bool isRepeat) {
@@ -140,7 +192,16 @@ class _BrowserScreenState extends State<BrowserScreen> {
       ny = edge;
       unawaited(_handleUpAtTop(step, isRepeat));
     }
+    if (dx > 0 && nx > w - edge) {
+      nx = w - edge;
+      _scrollPage(step.round(), 0);
+    } else if (dx < 0 && nx < edge) {
+      nx = edge;
+      _scrollPage(-step.round(), 0);
+    }
+
     setState(() => _cursor = Offset(nx, ny));
+    unawaited(_remote.movePointer(nx / w, ny / h));
   }
 
   Future<void> _handleUpAtTop(double step, bool isRepeat) async {
@@ -181,12 +242,29 @@ class _BrowserScreenState extends State<BrowserScreen> {
     }
     try {
       final res = await c.evaluateJavascript(source: src);
-      if (res == 'edge' &&
-          key == LogicalKeyboardKey.arrowUp &&
-          !isRepeat) {
-        final info = await c.evaluateJavascript(source: TvJs.pageInfo);
-        if (!mounted) return;
-        if (_jsonNum(info, 'y') <= 8) _showToolbar();
+      final state = res?.toString().replaceAll('"', '');
+      if (state != 'edge' && state != 'none') return;
+
+      final info = await c.evaluateJavascript(source: TvJs.pageInfo);
+      if (!mounted) return;
+      final y = _jsonNum(info, 'y');
+      final maxY = _jsonNum(info, 'max');
+      final viewportHeight = _jsonNum(info, 'viewportHeight');
+
+      if (key == LogicalKeyboardKey.arrowUp) {
+        if (y <= 8) {
+          if (!isRepeat) _showToolbar();
+        } else {
+          _scrollPage(
+            0,
+            -(viewportHeight * 0.7).clamp(180.0, 720.0).toDouble(),
+          );
+        }
+      } else if (key == LogicalKeyboardKey.arrowDown && y < maxY - 8) {
+        _scrollPage(
+          0,
+          (viewportHeight * 0.7).clamp(180.0, 720.0).toDouble(),
+        );
       }
     } catch (_) {}
   }
@@ -195,26 +273,79 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
   Future<void> _activate() async {
     final tab = _tabs.current;
-    if (tab.isHome) return;
+    if (tab.isHome || _viewportSize.width <= 0 || _viewportSize.height <= 0) {
+      return;
+    }
     final c = tab.controller;
     if (c == null) return;
-    final src = _settings.navMode == NavMode.cursor
-        ? TvJs.clickAt(
+    final cursorMode = _settings.navMode == NavMode.cursor;
+    final src = cursorMode
+        ? TvJs.inspectAt(
             _cursor.dx, _cursor.dy, _viewportSize.width, _viewportSize.height)
         : TvJs.spatialEnter;
     try {
       final res = await c.evaluateJavascript(source: src);
       if (!mounted) return;
-      if (res is String && res.startsWith('{')) {
-        final map = jsonDecode(res);
-        if (map is Map && map['kind'] == 'input') {
-          unawaited(_openWebInput(tab, map));
-        }
+      final map = _jsMap(res);
+      if (map?['kind'] == 'input') {
+        unawaited(_openWebInput(tab, map!));
+        return;
+      }
+
+      // In cursor mode even a page without the injected bridge can receive a
+      // native tap. In jump mode a null result means the first target was only
+      // highlighted, so SELECT should not click anything yet.
+      if (map?['kind'] == 'tap' || (cursorMode && map == null)) {
+        final didTap = map == null
+            ? await _remote.tap(
+                _cursor.dx / _viewportSize.width,
+                _cursor.dy / _viewportSize.height,
+              )
+            : await _tapDescriptor(map);
+        if (didTap || !mounted) return;
+
+        // Older OEM WebViews may not expose a native platform view. Keep the
+        // JavaScript click as a compatibility fallback.
+        await c.evaluateJavascript(
+          source: cursorMode
+              ? TvJs.clickAt(_cursor.dx, _cursor.dy, _viewportSize.width,
+                  _viewportSize.height)
+              : TvJs.spatialClickFallback,
+        );
       }
     } catch (_) {}
   }
 
+  Future<bool> _tapDescriptor(Map<String, dynamic> map) {
+    final x = (map['x'] as num?)?.toDouble() ?? 0;
+    final y = (map['y'] as num?)?.toDouble() ?? 0;
+    final width = (map['width'] as num?)?.toDouble() ?? 0;
+    final height = (map['height'] as num?)?.toDouble() ?? 0;
+    if (width <= 0 || height <= 0) return Future<bool>.value(false);
+    return _remote.tap(x / width, y / height);
+  }
+
+  Map<String, dynamic>? _jsMap(dynamic value) {
+    dynamic decoded = value;
+    for (var i = 0; i < 2; i++) {
+      if (decoded is! String) break;
+      final text = decoded.trim();
+      if (text.isEmpty || text == 'null') return null;
+      try {
+        decoded = jsonDecode(text);
+      } catch (_) {
+        return null;
+      }
+    }
+    if (decoded is Map) {
+      return decoded.map((key, value) => MapEntry(key.toString(), value));
+    }
+    return null;
+  }
+
   Future<void> _openWebInput(BrowserTab tab, Map map) async {
+    await _remote.focusFlutter();
+    if (!mounted) return;
     final result = await WebInputDialog.show(
       context,
       initial: (map['value'] ?? '').toString(),
@@ -233,49 +364,67 @@ class _BrowserScreenState extends State<BrowserScreen> {
   // ------------------------------------------------------------------ back
 
   Future<void> _onBack() async {
-    if (_toolbarVisible) {
-      _hideToolbar();
-      return;
-    }
-    final tab = _tabs.current;
-    if (!tab.isHome) {
-      final c = tab.controller;
-      try {
-        if (c != null && await c.canGoBack()) {
-          unawaited(c.goBack());
-          return;
+    if (_backInProgress) return;
+    _backInProgress = true;
+    try {
+      if (_toolbarVisible) {
+        _hideToolbar();
+        return;
+      }
+      final tab = _tabs.current;
+      if (!tab.isHome) {
+        final c = tab.controller;
+        try {
+          if (c != null && await c.canGoBack()) {
+            unawaited(c.goBack());
+            return;
+          }
+        } catch (_) {}
+        if (!mounted) return;
+        if (_tabs.count > 1) {
+          _tabs.closeTab(tab.id);
+        } else {
+          _tabs.goHome(tab);
         }
-      } catch (_) {}
-      if (!mounted) return;
+        unawaited(_remote.focusFlutter());
+        return;
+      }
       if (_tabs.count > 1) {
         _tabs.closeTab(tab.id);
-      } else {
-        _tabs.goHome(tab);
+        unawaited(_remote.focusFlutter());
+        return;
       }
-      return;
+      final exit = await confirmDialog(
+          context, 'Exit TV Browser?', 'Do you want to close the app?',
+          okLabel: 'Exit');
+      if (exit) SystemNavigator.pop();
+    } finally {
+      _backInProgress = false;
     }
-    if (_tabs.count > 1) {
-      _tabs.closeTab(tab.id);
-      return;
-    }
-    final exit = await confirmDialog(
-        context, 'Exit TV Browser?', 'Do you want to close the app?',
-        okLabel: 'Exit');
-    if (exit) SystemNavigator.pop();
   }
 
   // --------------------------------------------------------------- toolbar
 
   void _showToolbar() {
-    if (_toolbarVisible) return;
+    unawaited(_remote.focusFlutter());
+    if (_toolbarVisible) {
+      _addressNode.requestFocus();
+      _resetToolbarTimer();
+      return;
+    }
     setState(() => _toolbarVisible = true);
     _resetToolbarTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _toolbarVisible) _addressNode.requestFocus();
+    });
   }
 
   void _hideToolbar() {
     _toolbarTimer?.cancel();
     if (!_toolbarVisible) return;
+    _toolbarNode.unfocus();
     setState(() => _toolbarVisible = false);
+    unawaited(_remote.focusFlutter());
     _pageKeys.requestFocus();
   }
 
@@ -331,16 +480,14 @@ class _BrowserScreenState extends State<BrowserScreen> {
   void _toggleBookmark() {
     final tab = _tabs.current;
     if (tab.isHome) return;
-    final added =
-        context.read<BookmarksProvider>().toggle(tab.title, tab.url!);
+    final added = context.read<BookmarksProvider>().toggle(tab.title, tab.url!);
     _toast(added ? 'Bookmark added' : 'Bookmark removed');
     _resetToolbarTimer();
   }
 
   void _toggleNavMode() {
     final s = _settings;
-    final next =
-        s.navMode == NavMode.cursor ? NavMode.spatial : NavMode.cursor;
+    final next = s.navMode == NavMode.cursor ? NavMode.spatial : NavMode.cursor;
     s.setNavMode(next);
     final c = _tabs.current.controller;
     if (c != null) {
@@ -381,12 +528,15 @@ class _BrowserScreenState extends State<BrowserScreen> {
   // ------------------------------------------------------------- downloads
 
   Future<void> _handleDownload(DownloadStartRequest request) async {
+    await _remote.focusFlutter();
+    if (!mounted) return;
     final url = request.url.toString();
     var name = request.suggestedFilename ?? 'download.bin';
     if (name.isEmpty) {
       try {
         final seg = Uri.parse(url).pathSegments;
-        name = seg.isNotEmpty && seg.last.isNotEmpty ? seg.last : 'download.bin';
+        name =
+            seg.isNotEmpty && seg.last.isNotEmpty ? seg.last : 'download.bin';
       } catch (_) {
         name = 'download.bin';
       }
@@ -455,76 +605,82 @@ class _BrowserScreenState extends State<BrowserScreen> {
     );
     if (!mounted) return;
     Navigator.of(context, rootNavigator: true).pop(); // close progress
-    _toast(error == null
-        ? 'Saved to Downloads ✔'
-        : 'Download failed: $error');
+    _toast(error == null ? 'Saved to Downloads ✔' : 'Download failed: $error');
   }
 
   // ------------------------------------------------------------------ build
 
   @override
   Widget build(BuildContext context) {
-    return Consumer3<TabsProvider, SettingsProvider, BookmarksProvider>(
-      builder: (context, tabsP, settingsP, bookmarksP, _) {
-        final tab = tabsP.current;
-        return Scaffold(
-          backgroundColor: Colors.black,
-          body: SafeArea(
-            child: Focus(
-              focusNode: _pageKeys,
-              autofocus: true,
-              onKeyEvent: _handleKey,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  _viewportSize = constraints.biggest;
-                  if (!_cursorInitialized) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) unawaited(_onBack());
+      },
+      child: Consumer3<TabsProvider, SettingsProvider, BookmarksProvider>(
+        builder: (context, tabsP, settingsP, bookmarksP, _) {
+          final tab = tabsP.current;
+          return Scaffold(
+            backgroundColor: Colors.black,
+            body: SafeArea(
+              child: Focus(
+                focusNode: _pageKeys,
+                autofocus: true,
+                onKeyEvent: _handleKey,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    _viewportSize = constraints.biggest;
+                    if (!_cursorInitialized) {
+                      _cursor = Offset(constraints.biggest.width / 2,
+                          constraints.biggest.height / 2);
+                      _cursorInitialized = true;
+                    }
                     _cursor = Offset(
-                        constraints.biggest.width / 2,
-                        constraints.biggest.height / 2);
-                    _cursorInitialized = true;
-                  }
-                  _cursor = Offset(
-                    _cursor.dx.clamp(0.0, constraints.biggest.width),
-                    _cursor.dy.clamp(0.0, constraints.biggest.height),
-                  );
-                  return Stack(
-                    children: [
-                      Positioned.fill(child: _buildTabStack(tabsP)),
-                      if (tab.isLoading && tab.progress < 100)
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          child: LinearProgressIndicator(
-                            value: tab.progress / 100,
-                            minHeight: 3,
-                            color: TvStyle.accent,
-                            backgroundColor: Colors.transparent,
+                      _cursor.dx.clamp(0.0, constraints.biggest.width),
+                      _cursor.dy.clamp(0.0, constraints.biggest.height),
+                    );
+                    return Stack(
+                      children: [
+                        Positioned.fill(child: _buildTabStack(tabsP)),
+                        if (tab.isLoading && tab.progress < 100)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: LinearProgressIndicator(
+                              value: tab.progress / 100,
+                              minHeight: 3,
+                              color: TvStyle.accent,
+                              backgroundColor: Colors.transparent,
+                            ),
                           ),
-                        ),
-                      if (!tab.isHome && tab.error != null)
-                        Positioned.fill(child: _buildError(tab)),
-                      if (!tab.isHome && settingsP.navMode == NavMode.cursor)
-                        Positioned.fill(
-                            child: CursorOverlay(position: _cursor)),
-                      if (_toolbarVisible)
-                        Positioned(
-                          top: 8,
-                          left: 12,
-                          right: 12,
-                          child: Focus(
-                            focusNode: _toolbarNode,
-                            child: _buildToolbar(tab, tabsP, bookmarksP),
+                        if (!tab.isHome && tab.error != null)
+                          Positioned.fill(child: _buildError(tab)),
+                        if (!tab.isHome && settingsP.navMode == NavMode.cursor)
+                          Positioned.fill(
+                              child: CursorOverlay(position: _cursor)),
+                        if (_toolbarVisible)
+                          Positioned(
+                            top: 8,
+                            left: 12,
+                            right: 12,
+                            child: FocusScope(
+                              node: _toolbarNode,
+                              child: FocusTraversalGroup(
+                                policy: ReadingOrderTraversalPolicy(),
+                                child: _buildToolbar(tab, tabsP, bookmarksP),
+                              ),
+                            ),
                           ),
-                        ),
-                    ],
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -589,8 +745,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
         if (asksNewWindow && url.isNotEmpty) {
           final gestured = navigationAction.hasGesture ?? false;
           if (gestured) {
-            unawaited(controller.loadUrl(
-                urlRequest: URLRequest(url: WebUri(url))));
+            unawaited(
+                controller.loadUrl(urlRequest: URLRequest(url: WebUri(url))));
           }
           return NavigationActionPolicy.CANCEL;
         }
@@ -601,8 +757,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
       },
       onWebViewCreated: (controller) {
         tab.controller = controller;
-        unawaited(controller.evaluateJavascript(
-            source: TvJs.setMode(_navModeLike)));
+        unawaited(
+            controller.evaluateJavascript(source: TvJs.setMode(_navModeLike)));
       },
       onLoadStart: (controller, url) {
         tab.isLoading = true;
@@ -614,8 +770,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
       onLoadStop: (controller, url) {
         tab.isLoading = false;
         if (url != null) tab.url = url.toString();
-        unawaited(controller.evaluateJavascript(
-            source: TvJs.setMode(_navModeLike)));
+        unawaited(
+            controller.evaluateJavascript(source: TvJs.setMode(_navModeLike)));
         _tabs.poke();
       },
       onProgressChanged: (controller, progress) {
@@ -756,6 +912,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: TvButton(
+                focusNode: _addressNode,
                 autofocus: true,
                 icon: Icons.search,
                 label: addressText,
