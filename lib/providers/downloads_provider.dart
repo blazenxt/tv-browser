@@ -41,6 +41,7 @@ class DownloadsProvider extends ChangeNotifier {
     required String fileName,
     required String url,
     int? total,
+    String? mimeType,
   }) {
     final entry = DownloadEntry(
       id: 'dl_${DateTime.now().microsecondsSinceEpoch}',
@@ -48,6 +49,7 @@ class DownloadsProvider extends ChangeNotifier {
       url: url,
       startedAt: DateTime.now().millisecondsSinceEpoch,
       total: total,
+      mimeType: mimeType,
     );
     _entries.add(entry);
     _trimAndSave();
@@ -61,9 +63,10 @@ class DownloadsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void complete(DownloadEntry entry) {
+  void complete(DownloadEntry entry, {String? savedLocation}) {
     entry.state = DownloadState.complete;
     entry.error = null;
+    entry.savedLocation = savedLocation;
     _trimAndSave();
     notifyListeners();
   }

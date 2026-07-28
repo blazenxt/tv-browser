@@ -71,7 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  'TV Browser 1.3.0',
+                  'TV Browser 1.3.1',
                   style: TextStyle(color: TvStyle.secondaryTextOf(context)),
                 ),
               ],

@@ -114,6 +114,20 @@ class RemoteControlService {
         y,
       );
 
+  Future<bool> openDownload(String location, {String? mimeType}) async {
+    try {
+      return await _channel.invokeMethod<bool>('openDownload', {
+            'location': location,
+            'mime': mimeType ?? 'application/octet-stream',
+          }) ??
+          false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   Future<bool> openExternal(String url) async {
     try {
       return await _channel.invokeMethod<bool>('openExternal', {'url': url}) ??

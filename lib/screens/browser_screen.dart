@@ -598,6 +598,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
       desktopMode: _desktopMode(tab),
       cursorMode: _settings.navMode == NavMode.cursor,
       canReopenClosedTab: _tabs.canReopenClosedTab,
+      readerMode: tab.readerMode,
+      muted: tab.muted,
       zoomPercent: (tab.pageZoom * 100).round(),
       host: tab.host,
     );
@@ -652,6 +654,14 @@ class _BrowserScreenState extends State<BrowserScreen> {
               'https://translate.google.com/translate?sl=auto&tl=en&u=${Uri.encodeComponent(tab.url!)}';
           _navigate(translated);
         }
+      case BrowserMenuAction.siteInfo:
+        await _showSiteInfo(tab);
+      case BrowserMenuAction.toggleReaderMode:
+        await _toggleReaderMode(tab);
+      case BrowserMenuAction.toggleMute:
+        await _toggleMute(tab);
+      case BrowserMenuAction.printPage:
+        await _printPage(tab);
       case BrowserMenuAction.duplicateTab:
         _tabs.duplicate(tab);
       case BrowserMenuAction.closeTab:
@@ -660,6 +670,59 @@ class _BrowserScreenState extends State<BrowserScreen> {
         await _clearBrowsingData();
       case BrowserMenuAction.settings:
         await _pushScreen(const SettingsScreen());
+    }
+  }
+
+  Future<void> _showSiteInfo(BrowserTab tab) async {
+    final security = tab.isSecure
+        ? 'Secure HTTPS connection'
+        : 'Connection is not protected by HTTPS';
+    await messageDialog(
+      context,
+      tab.host.isEmpty ? 'Site information' : tab.host,
+      '$security\n\nAddress: ${tab.url}\nPage zoom: ${(tab.pageZoom * 100).round()}%\nDesktop mode: ${_desktopMode(tab) ? 'On' : 'Off'}\nThird-party cookies: ${_settings.thirdPartyCookiesEnabled ? 'Allowed' : 'Blocked'}\nSafe Browsing: ${_settings.safeBrowsingEnabled ? 'On' : 'Off'}',
+    );
+  }
+
+  Future<void> _toggleReaderMode(BrowserTab tab) async {
+    final enabled = !tab.readerMode;
+    try {
+      await tab.controller?.evaluateJavascript(
+        source: TvJs.setReaderMode(
+          enabled,
+          dark: Theme.of(context).brightness == Brightness.dark,
+        ),
+      );
+      tab.readerMode = enabled;
+      _tabs.poke(saveSession: false);
+      _toast(enabled ? 'Reader mode enabled' : 'Reader mode disabled');
+    } catch (_) {
+      _toast('Reader mode is not available on this page');
+    }
+  }
+
+  Future<void> _toggleMute(BrowserTab tab) async {
+    final muted = !tab.muted;
+    try {
+      await tab.controller?.evaluateJavascript(
+        source: TvJs.setMediaMuted(muted),
+      );
+      tab.muted = muted;
+      _tabs.poke(saveSession: false);
+      _toast(muted ? 'Tab muted' : 'Tab unmuted');
+    } catch (_) {
+      _toast('Could not change media volume');
+    }
+  }
+
+  Future<void> _printPage(BrowserTab tab) async {
+    try {
+      final job = await tab.controller?.printCurrentPage();
+      _toast(job == null
+          ? 'Printing is not available on this TV'
+          : 'Print dialog opened');
+    } catch (_) {
+      _toast('Printing is not available on this TV');
     }
   }
 
@@ -969,6 +1032,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
       fileName: name,
       url: url,
       total: request.contentLength,
+      mimeType: request.mimeType,
     );
     final progress = ValueNotifier<String>(
         size.isEmpty ? 'Downloading…' : 'Downloading… 0%');
@@ -1009,7 +1073,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
       ),
     ));
 
-    final error = await _downloads.downloadAndSave(
+    final result = await _downloads.downloadAndSave(
       url: url,
       fileName: name,
       mimeType: request.mimeType,
@@ -1027,12 +1091,19 @@ class _BrowserScreenState extends State<BrowserScreen> {
     if (!mounted) return;
     Navigator.of(context, rootNavigator: true).pop(); // close progress
     progress.dispose();
-    if (error == null) {
-      downloadsProvider.complete(downloadEntry);
+    if (result.success) {
+      downloadsProvider.complete(
+        downloadEntry,
+        savedLocation: result.savedLocation,
+      );
     } else {
-      downloadsProvider.fail(downloadEntry, error);
+      downloadsProvider.fail(downloadEntry, result.error ?? 'Unknown error');
     }
-    _toast(error == null ? 'Saved to Downloads ✔' : 'Download failed: $error');
+    _toast(
+      result.success
+          ? 'Saved to Downloads ✔'
+          : 'Download failed: ${result.error}',
+    );
   }
 
   // ------------------------------------------------------------------ build
@@ -1254,6 +1325,19 @@ class _BrowserScreenState extends State<BrowserScreen> {
         if (url != null) tab.url = url.toString();
         unawaited(
             controller.evaluateJavascript(source: TvJs.setMode(_navModeLike)));
+        if (tab.readerMode) {
+          unawaited(controller.evaluateJavascript(
+            source: TvJs.setReaderMode(
+              true,
+              dark: Theme.of(context).brightness == Brightness.dark,
+            ),
+          ));
+        }
+        if (tab.muted) {
+          unawaited(controller.evaluateJavascript(
+            source: TvJs.setMediaMuted(true),
+          ));
+        }
         unawaited(_updateNavigationState(tab));
         if ((tab.pageZoom - 1).abs() > 0.01) {
           unawaited(_setPageZoom(tab, tab.pageZoom, announce: false));
@@ -1520,13 +1604,15 @@ class _BrowserScreenState extends State<BrowserScreen> {
                     child: Row(
                       children: [
                         Icon(
-                          tab.isIncognito
-                              ? Icons.visibility_off_outlined
-                              : tab.isHome
-                                  ? Icons.public_rounded
-                                  : tab.isSecure
-                                      ? Icons.lock_outline_rounded
-                                      : Icons.public_rounded,
+                          tab.muted
+                              ? Icons.volume_off_rounded
+                              : tab.isIncognito
+                                  ? Icons.visibility_off_outlined
+                                  : tab.isHome
+                                      ? Icons.public_rounded
+                                      : tab.isSecure
+                                          ? Icons.lock_outline_rounded
+                                          : Icons.public_rounded,
                           size: 16,
                           color: tab.isIncognito
                               ? TvStyle.secondaryTextOf(context)

@@ -4,6 +4,15 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+class DownloadSaveResult {
+  const DownloadSaveResult({this.savedLocation, this.error});
+
+  final String? savedLocation;
+  final String? error;
+
+  bool get success => error == null;
+}
+
 /// Downloads files triggered by the WebView and hands them to Android's
 /// public Downloads collection via a small platform channel.
 class DownloadService {
@@ -25,9 +34,8 @@ class DownloadService {
     return '${size.toStringAsFixed(size >= 10 || unit == 0 ? 0 : 1)} ${units[unit]}';
   }
 
-  /// Downloads [url] and saves it as [fileName] in the public Downloads
-  /// folder. Returns null on success, or an error message.
-  Future<String?> downloadAndSave({
+  /// Downloads [url] and saves it in the public Downloads folder.
+  Future<DownloadSaveResult> downloadAndSave({
     required String url,
     required String fileName,
     String? mimeType,
@@ -38,11 +46,15 @@ class DownloadService {
       final request = await _client.getUrl(Uri.parse(url));
       final response = await request.close();
       if (response.statusCode >= 400) {
-        return 'Server returned HTTP ${response.statusCode}';
+        return DownloadSaveResult(
+          error: 'Server returned HTTP ${response.statusCode}',
+        );
       }
       final dir = await getTemporaryDirectory();
       final safe = fileName.replaceAll(RegExp(r'[^\w\-. ]'), '_');
-      temp = File('${dir.path}/tv_dl_${DateTime.now().millisecondsSinceEpoch}_$safe');
+      temp = File(
+        '${dir.path}/tv_dl_${DateTime.now().millisecondsSinceEpoch}_$safe',
+      );
       final sink = temp.openWrite();
       final total = response.contentLength >= 0 ? response.contentLength : null;
       var received = 0;
@@ -53,21 +65,26 @@ class DownloadService {
       }
       await sink.close();
 
-      final saved = await _channel.invokeMethod<bool>('saveToDownloads', {
-        'path': temp.path,
-        'name': safe,
-        'mime': mimeType ?? 'application/octet-stream',
-      });
-      if (saved != true) {
+      final savedLocation = await _channel.invokeMethod<String>(
+        'saveToDownloads',
+        {
+          'path': temp.path,
+          'name': safe,
+          'mime': mimeType ?? 'application/octet-stream',
+        },
+      );
+      if (savedLocation == null || savedLocation.isEmpty) {
         await temp.delete().catchError((_) => temp!);
-        return 'Could not save to Downloads';
+        return const DownloadSaveResult(
+          error: 'Could not save to Downloads',
+        );
       }
-      return null;
-    } catch (e) {
+      return DownloadSaveResult(savedLocation: savedLocation);
+    } catch (error) {
       try {
         await temp?.delete();
       } catch (_) {}
-      return e.toString();
+      return DownloadSaveResult(error: error.toString());
     }
   }
 }

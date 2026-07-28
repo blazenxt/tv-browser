@@ -54,6 +54,8 @@ class BrowserTab {
   final bool isIncognito;
   bool? desktopModeOverride;
   double pageZoom;
+  bool readerMode = false;
+  bool muted = false;
   int progress = 0;
   bool isLoading = false;
   bool canGoBack = false;
@@ -99,6 +101,8 @@ class DownloadEntry {
     this.total,
     this.state = DownloadState.downloading,
     this.error,
+    this.savedLocation,
+    this.mimeType,
   });
 
   final String id;
@@ -109,6 +113,8 @@ class DownloadEntry {
   int? total;
   DownloadState state;
   String? error;
+  String? savedLocation;
+  String? mimeType;
 
   double? get progress => total != null && total! > 0
       ? (received / total!).clamp(0.0, 1.0).toDouble()
@@ -123,6 +129,8 @@ class DownloadEntry {
         'total': total,
         'state': state.index,
         'error': error,
+        'savedLocation': savedLocation,
+        'mimeType': mimeType,
       };
 
   factory DownloadEntry.fromJson(Map<String, dynamic> json) {
@@ -138,6 +146,8 @@ class DownloadEntry {
           ? DownloadState.values[stateIndex]
           : DownloadState.failed,
       error: json['error']?.toString(),
+      savedLocation: json['savedLocation']?.toString(),
+      mimeType: json['mimeType']?.toString(),
     );
   }
 }

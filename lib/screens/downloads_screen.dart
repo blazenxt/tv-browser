@@ -5,11 +5,34 @@ import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../providers/downloads_provider.dart';
 import '../services/download_service.dart';
+import '../services/remote_control_service.dart';
 import '../widgets/dialogs.dart';
 import '../widgets/tv_button.dart';
 
 class DownloadsScreen extends StatelessWidget {
   const DownloadsScreen({super.key});
+
+  Future<void> _openDownload(
+    BuildContext context,
+    DownloadEntry entry,
+  ) async {
+    final location = entry.savedLocation;
+    final opened = location != null &&
+        await RemoteControlService.instance.openDownload(
+          location,
+          mimeType: entry.mimeType,
+        );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          opened
+              ? 'Opening ${entry.fileName}'
+              : 'No installed app can open this file',
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,12 +92,7 @@ class DownloadsScreen extends StatelessWidget {
                           return TvButton(
                             autofocus: index == 0,
                             onPressed: entry.state == DownloadState.complete
-                                ? () => ScaffoldMessenger.of(context)
-                                        .showSnackBar(const SnackBar(
-                                      content: Text(
-                                        'Saved in the TV Downloads folder',
-                                      ),
-                                    ))
+                                ? () => _openDownload(context, entry)
                                 : null,
                             onMenu: () => context
                                 .read<DownloadsProvider>()

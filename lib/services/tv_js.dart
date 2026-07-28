@@ -16,6 +16,9 @@ class TvJs {
   var prevOutline = '';
   var prevOutlineOffset = '';
   var pendingInput = null;
+  var readerStyle = null;
+  var mediaMuted = false;
+  var mediaObserver = null;
 
   function rendered(el) {
     if (!el || !el.getBoundingClientRect) return false;
@@ -301,6 +304,49 @@ class TvJs {
     return true;
   }
 
+  function setReaderMode(enabled, dark) {
+    if (!readerStyle) {
+      readerStyle = document.createElement('style');
+      readerStyle.id = '__tv_reader_style';
+      (document.head || document.documentElement).appendChild(readerStyle);
+    }
+    if (!enabled) {
+      readerStyle.textContent = '';
+      document.documentElement.removeAttribute('data-tv-reader');
+      return true;
+    }
+    var bg = dark ? '#202124' : '#f8f9fa';
+    var fg = dark ? '#e8eaed' : '#202124';
+    var link = dark ? '#8ab4f8' : '#1967d2';
+    readerStyle.textContent =
+      'html[data-tv-reader],html[data-tv-reader] body{background:' + bg + '!important;color:' + fg +
+      '!important;font-family:Arial,sans-serif!important;font-size:20px!important;line-height:1.7!important;}' +
+      'html[data-tv-reader] body{max-width:980px!important;margin:0 auto!important;padding:48px!important;}' +
+      'html[data-tv-reader] nav,html[data-tv-reader] aside,html[data-tv-reader] footer,' +
+      'html[data-tv-reader] [role="navigation"],html[data-tv-reader] [class*="advert"],' +
+      'html[data-tv-reader] [id*="advert"],html[data-tv-reader] iframe{display:none!important;}' +
+      'html[data-tv-reader] article,html[data-tv-reader] main{max-width:900px!important;margin:auto!important;}' +
+      'html[data-tv-reader] img,html[data-tv-reader] video{max-width:100%!important;height:auto!important;}' +
+      'html[data-tv-reader] a{color:' + link + '!important;}';
+    document.documentElement.setAttribute('data-tv-reader', '1');
+    return true;
+  }
+
+  function applyMediaMute() {
+    var media = document.querySelectorAll('audio,video');
+    for (var i = 0; i < media.length; i++) media[i].muted = mediaMuted;
+  }
+
+  function setMediaMuted(enabled) {
+    mediaMuted = !!enabled;
+    applyMediaMute();
+    if (!mediaObserver && window.MutationObserver) {
+      mediaObserver = new MutationObserver(applyMediaMute);
+      mediaObserver.observe(document.documentElement, { childList: true, subtree: true });
+    }
+    return mediaMuted;
+  }
+
   function pageInfo() {
     var doc = document.documentElement || {};
     var body = document.body || {};
@@ -333,6 +379,8 @@ class TvJs {
     clickAt: clickAt,
     setPendingValue: setPendingValue,
     submitPending: submitPending,
+    setReaderMode: setReaderMode,
+    setMediaMuted: setMediaMuted,
     pageInfo: pageInfo,
     setMode: setMode,
     deselect: deselect
@@ -359,6 +407,12 @@ class TvJs {
       'window.__tv ? window.__tv.clickAt($x, $y, $w, $h) : null';
 
   static String scrollBy(int dx, int dy) => 'window.scrollBy($dx, $dy);';
+
+  static String setReaderMode(bool enabled, {required bool dark}) =>
+      'window.__tv && window.__tv.setReaderMode($enabled, $dark);';
+
+  static String setMediaMuted(bool enabled) =>
+      'window.__tv && window.__tv.setMediaMuted($enabled);';
 
   static const String pageInfo =
       'window.__tv ? window.__tv.pageInfo() : JSON.stringify({x: 0, y: 0, maxX: 0, max: 0})';

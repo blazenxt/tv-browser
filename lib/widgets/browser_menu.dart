@@ -19,6 +19,10 @@ enum BrowserMenuAction {
   copyUrl,
   share,
   translate,
+  siteInfo,
+  toggleReaderMode,
+  toggleMute,
+  printPage,
   duplicateTab,
   closeTab,
   clearBrowsingData,
@@ -34,6 +38,8 @@ class BrowserMenu extends StatelessWidget {
     required this.desktopMode,
     required this.cursorMode,
     required this.canReopenClosedTab,
+    required this.readerMode,
+    required this.muted,
     required this.zoomPercent,
     required this.host,
   });
@@ -44,6 +50,8 @@ class BrowserMenu extends StatelessWidget {
   final bool desktopMode;
   final bool cursorMode;
   final bool canReopenClosedTab;
+  final bool readerMode;
+  final bool muted;
   final int zoomPercent;
   final String host;
 
@@ -55,6 +63,8 @@ class BrowserMenu extends StatelessWidget {
     required bool desktopMode,
     required bool cursorMode,
     required bool canReopenClosedTab,
+    required bool readerMode,
+    required bool muted,
     required int zoomPercent,
     required String host,
   }) {
@@ -68,6 +78,8 @@ class BrowserMenu extends StatelessWidget {
         desktopMode: desktopMode,
         cursorMode: cursorMode,
         canReopenClosedTab: canReopenClosedTab,
+        readerMode: readerMode,
+        muted: muted,
         zoomPercent: zoomPercent,
         host: host,
       ),
@@ -116,7 +128,7 @@ class BrowserMenu extends StatelessWidget {
                       ),
                     ),
                     const Text(
-                      '1.3',
+                      '1.3.1',
                       style: TextStyle(fontSize: 12, color: TvStyle.accent),
                     ),
                   ],
@@ -217,6 +229,34 @@ class BrowserMenu extends StatelessWidget {
                         BrowserMenuAction.translate,
                         Icons.translate_rounded,
                         'Translate page',
+                      ),
+                      _item(
+                        context,
+                        BrowserMenuAction.siteInfo,
+                        Icons.tune_rounded,
+                        'Site information',
+                      ),
+                      _item(
+                        context,
+                        BrowserMenuAction.toggleReaderMode,
+                        Icons.chrome_reader_mode_outlined,
+                        readerMode ? 'Exit reader mode' : 'Reader mode',
+                        selected: readerMode,
+                      ),
+                      _item(
+                        context,
+                        BrowserMenuAction.toggleMute,
+                        muted
+                            ? Icons.volume_off_rounded
+                            : Icons.volume_up_outlined,
+                        muted ? 'Unmute tab' : 'Mute tab',
+                        selected: muted,
+                      ),
+                      _item(
+                        context,
+                        BrowserMenuAction.printPage,
+                        Icons.print_outlined,
+                        'Print / Save as PDF',
                       ),
                       _item(
                         context,

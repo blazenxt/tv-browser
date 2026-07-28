@@ -13,6 +13,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.android.FlutterView
 import io.flutter.embedding.engine.FlutterEngine
@@ -65,6 +66,11 @@ class MainActivity : FlutterActivity() {
                 "focusFlutter" -> {
                     focusedWebView()?.clearFocus()
                     result.success(findFlutterView(window.decorView)?.requestFocus() ?: false)
+                }
+                "openDownload" -> {
+                    val location = call.argument<String>("location").orEmpty()
+                    val mime = call.argument<String>("mime") ?: "application/octet-stream"
+                    result.success(openDownloadedFile(location, mime))
                 }
                 "openExternal" -> {
                     val url = call.argument<String>("url").orEmpty()
@@ -214,8 +220,8 @@ class MainActivity : FlutterActivity() {
     }
 
     /** Copies [src] into the public Downloads collection and deletes the temp file. */
-    private fun saveToDownloads(src: File, name: String, mime: String): Boolean {
-        if (!src.exists()) return false
+    private fun saveToDownloads(src: File, name: String, mime: String): String? {
+        if (!src.exists()) return null
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             saveViaMediaStore(src, name, mime)
         } else {
@@ -223,7 +229,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun saveViaMediaStore(src: File, name: String, mime: String): Boolean {
+    private fun saveViaMediaStore(src: File, name: String, mime: String): String? {
         val resolver = applicationContext.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, name)
@@ -231,7 +237,7 @@ class MainActivity : FlutterActivity() {
             put(MediaStore.Downloads.IS_PENDING, 1)
         }
         val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val uri = resolver.insert(collection, values) ?: return false
+        val uri = resolver.insert(collection, values) ?: return null
         val ok = resolver.openOutputStream(uri)?.use { out ->
             src.inputStream().use { it.copyTo(out) }
             true
@@ -239,17 +245,47 @@ class MainActivity : FlutterActivity() {
         values.clear()
         values.put(MediaStore.Downloads.IS_PENDING, 0)
         resolver.update(uri, values, null, null)
-        if (ok) src.delete()
-        return ok
+        if (ok) {
+            src.delete()
+            return uri.toString()
+        }
+        resolver.delete(uri, null, null)
+        return null
     }
 
     @Suppress("DEPRECATION")
-    private fun saveLegacy(src: File, name: String): Boolean {
+    private fun saveLegacy(src: File, name: String): String? {
         val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         if (!dir.exists()) dir.mkdirs()
         val dest = File(dir, name)
         src.inputStream().use { input -> dest.outputStream().use { input.copyTo(it) } }
         src.delete()
-        return true
+        return dest.absolutePath
+    }
+
+    private fun openDownloadedFile(location: String, mime: String): Boolean {
+        if (location.isBlank()) return false
+        return try {
+            val uri = if (location.startsWith("content://")) {
+                Uri.parse(location)
+            } else {
+                val file = File(location)
+                if (!file.exists()) return false
+                FileProvider.getUriForFile(
+                    this,
+                    "${applicationContext.packageName}.fileprovider",
+                    file,
+                )
+            }
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mime)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 }

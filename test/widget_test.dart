@@ -97,7 +97,10 @@ void main() {
         total: 100,
       );
       downloads.progress(complete, 100, 100);
-      downloads.complete(complete);
+      downloads.complete(
+        complete,
+        savedLocation: 'content://downloads/video.mp4',
+      );
       final failed = downloads.start(
         fileName: 'bad.zip',
         url: 'https://example.com/bad.zip',
@@ -106,6 +109,7 @@ void main() {
 
       expect(complete.state, DownloadState.complete);
       expect(complete.progress, 1);
+      expect(complete.savedLocation, 'content://downloads/video.mp4');
       expect(failed.state, DownloadState.failed);
       expect(failed.error, 'Network error');
     });

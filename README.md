@@ -102,6 +102,10 @@ android/                        Leanback manifest, banner, icons
 
 ## 🧾 Changelog
 
+**1.3.1** — Open completed downloads with installed TV apps, searchable
+bookmarks and history, reader mode, per-tab mute, site-information panel,
+and Android Print / Save-as-PDF integration.
+
 **1.3.0** — Chrome-inspired tab strip and omnibox, light/dark/system themes,
 incognito tabs, session restore, reopen/duplicate tab, bookmark and download
 managers, find-in-page, per-tab zoom and desktop mode, page sharing/translation,
